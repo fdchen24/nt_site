@@ -30,6 +30,10 @@ is fetched at run time: the markup is complete once this script finishes, and
 the slides are switched by CSS alone.  That keeps the page working with scripts
 disabled, which is how the Anonymous GitHub mirror serves it by default.
 
+The CSS and JS URLs are rewritten with a content-hash query (see
+``stamp_assets``) so that an edited asset is not served from the mirror's CDN
+cache under its old name.
+
 The script is idempotent: existing copies are skipped unless ``--force``.
 Posters are extracted with ``ffmpeg``, which therefore has to be on PATH.
 """
@@ -38,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import html
 import re
 import shutil
@@ -366,6 +371,28 @@ def qual_clip(model: str, video_id: int) -> Path | None:
     return VIDEO_DIR / model / f"{video_id}.mp4"
 
 
+def stamp_assets() -> None:
+    """Append a content hash to the CSS/JS URLs in index.html.
+
+    The Anonymous GitHub mirror sits behind a CDN that keys its cache on the
+    whole URL, so once ``style.css``/``main.js`` are cached an edited copy keeps
+    being served under the same name -- the browser then runs the *old* script
+    against the new markup.  Changing the query string changes the cache key.
+    The mirror ignores the query when resolving the file, so the hash is purely
+    a cache buster.
+    """
+    text = INDEX.read_text(encoding="utf-8")
+    for rel in ("css/style.css", "js/main.js"):
+        digest = hashlib.sha256((SITE / rel).read_bytes()).hexdigest()[:8]
+        pattern = re.compile(
+            r'((?:href|src)="' + re.escape(rel) + r')(?:\?v=[0-9a-f]+)?(")'
+        )
+        text, hits = pattern.subn(lambda m: f"{m.group(1)}?v={digest}{m.group(2)}", text)
+        if not hits:
+            raise SystemExit(f"asset not referenced in {INDEX.name}: {rel}")
+    INDEX.write_text(text, encoding="utf-8")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--force", action="store_true", help="overwrite existing clips/posters")
@@ -379,6 +406,7 @@ def main() -> None:
     if not args.skip_more:
         print("more results:")
         inject(MORE_BEGIN, MORE_END, build_more(args.force))
+    stamp_assets()
     print(f"wrote {INDEX.relative_to(SITE)}")
 
 

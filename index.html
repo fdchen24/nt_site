@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NextAvatar: Next-State Planning for Streaming Avatar Video Generation</title>
 <meta name="description" content="NextAvatar plans the next visual state from generated history and an active instruction to resolve history-state confusion in streaming avatar video generation.">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=65e21437">
 </head>
 <body>
 
@@ -225,9 +225,27 @@
         <b>Example MIRA-Bench assignment.</b> A fixed reference image paired with ten
         sequential instructions, each specifying expression and action with independent
         clear/subtle tags. MIRA-Bench pairs 50 reference images with 200 ten-instruction
-        sequences, yielding 2,000 expression&ndash;action intervals.
+        sequences, yielding 2,000 expression&ndash;action intervals with balanced clear and
+        subtle categories.
       </figcaption>
     </figure>
+
+    <p class="body">
+      We measure human fidelity with <b>Human Anatomy</b>, <b>Human Identity</b>, and
+      <b>Human Clothes</b> from VBench-2.0, measuring identity against the input reference;
+      instruction responsiveness with <b>Instruct Follow</b> from Vision Reward; and video
+      quality with <b>Vision Reward</b>, <b>Aesthetic Quality</b>, and <b>Imaging Quality</b>.
+      Action progression is assessed through human annotations of repetition and stagnation:
+      from each of the 200 videos we randomly select one of its ten intervals and evaluate the
+      corresponding interval for every method, yielding 200 annotated intervals per method.
+    </p>
+
+    <p class="body">
+      We compare against six external systems: <b>LongCat-Video-Avatar 1.5</b>,
+      <b>SoulX-FlashTalk</b>, <b>SoulX-LiveAct</b>, <b>Live Avatar</b>, <b>TaoMate</b>, and
+      <b>AptAvatar</b>. All methods use the same benchmark inputs and a nominal 60-second
+      generation budget at 24 FPS.
+    </p>
 
     <div class="table-block">
       <div class="table-cap">
@@ -292,9 +310,17 @@
     </div>
 
     <p class="body">
-      NextAvatar leads in Instruct Follow (<b>0.6495</b>) and VisionReward (<b>0.9397</b>) and
-      takes the second-best Aesthetic and Imaging Quality, while Human Anatomy and Human
-      Identity remain below the leading external methods.
+      Table 1 compares streaming avatar methods across human fidelity, instruction
+      responsiveness, and video quality. Live Avatar achieves relatively low human fidelity
+      and instruction following scores, while its video quality scores remain competitive.
+      LongCat-Avatar 1.5, SoulX-FlashTalk, and AptAvatar improve human fidelity and achieve
+      strong video quality, but their instruction following scores remain below 0.58.
+      SoulX-LiveAct and TaoMate further raise instruction following to 0.6395 and 0.6245,
+      respectively, yet both still show substantial repetition and stagnation when
+      instructions span multiple chunks. With a 1.3B-parameter generator, NextAvatar achieves
+      the highest instruction following (<b>0.6495</b>) and Vision Reward (<b>0.9397</b>)
+      scores while maintaining competitive aesthetic and imaging quality, with slightly lower
+      identity fidelity than larger baselines.
     </p>
 
     <div class="table-block">
@@ -371,6 +397,6 @@
   </div>
 </footer>
 
-<script src="js/main.js"></script>
+<script src="js/main.js?v=a5862b30"></script>
 </body>
 </html>
