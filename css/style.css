@@ -322,10 +322,44 @@ td.second { text-decoration: underline; text-underline-offset: 3px; }
 /* ------------------------------------------------------------- carousel */
 
 .carousel {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-panel);
   overflow: hidden;
+}
+
+/* Slide switching is pure CSS: one hidden radio per slide, the visible slide
+   picked by :checked. The page therefore keeps paging with scripts disabled,
+   which is how the Anonymous GitHub mirror serves it by default. */
+.car-radio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.car-slide { display: none; }
+
+.car-radio:nth-of-type(1):checked ~ .car-stage > .car-slide:nth-of-type(1),
+.car-radio:nth-of-type(2):checked ~ .car-stage > .car-slide:nth-of-type(2),
+.car-radio:nth-of-type(3):checked ~ .car-stage > .car-slide:nth-of-type(3),
+.car-radio:nth-of-type(4):checked ~ .car-stage > .car-slide:nth-of-type(4),
+.car-radio:nth-of-type(5):checked ~ .car-stage > .car-slide:nth-of-type(5),
+.car-radio:nth-of-type(6):checked ~ .car-stage > .car-slide:nth-of-type(6),
+.car-radio:nth-of-type(7):checked ~ .car-stage > .car-slide:nth-of-type(7),
+.car-radio:nth-of-type(8):checked ~ .car-stage > .car-slide:nth-of-type(8),
+.car-radio:nth-of-type(9):checked ~ .car-stage > .car-slide:nth-of-type(9),
+.car-radio:nth-of-type(10):checked ~ .car-stage > .car-slide:nth-of-type(10),
+.car-radio:nth-of-type(11):checked ~ .car-stage > .car-slide:nth-of-type(11),
+.car-radio:nth-of-type(12):checked ~ .car-stage > .car-slide:nth-of-type(12) {
+  display: block;
 }
 
 .car-btn {
@@ -346,8 +380,11 @@ td.second { text-decoration: underline; text-underline-offset: 3px; }
 }
 .car-btn:hover { background: var(--ours); border-color: var(--ours); color: #fff; }
 
-/* Single green control that restarts the clips of the current slide. */
+/* Single green control that restarts the clips of the current slide. Replaying
+   needs a script, so it stays hidden until main.js marks the document as
+   scripted — otherwise the button would be dead. */
 .car-btn.play {
+  display: none;
   width: auto;
   padding: 0 16px;
   font-size: 14px;
@@ -357,6 +394,7 @@ td.second { text-decoration: underline; text-underline-offset: 3px; }
   border-color: var(--ours);
   color: #fff;
 }
+html.js .car-btn.play { display: inline-flex; }
 .car-btn.play:hover { background: #0b5d57; border-color: #0b5d57; }
 
 .car-counter {
@@ -614,8 +652,6 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 footer .spacer { margin-left: auto; }
 
 /* ------------------------------------------------------------ misc / util */
-
-.loading { color: var(--muted); font-size: 14px; padding: 14px 0; }
 
 .callout {
   border: 1px solid var(--line);
