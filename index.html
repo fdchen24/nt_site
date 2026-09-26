@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NextAvatar: Next-State Planning for Streaming Avatar Video Generation</title>
+<meta name="description" content="NextAvatar plans the next visual state from generated history and an active instruction to resolve history-state confusion in streaming avatar video generation.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ============================================================ top nav -->
+<div class="topbar">
+  <div class="wrap topbar-inner">
+    <div class="brand">Next<span>Avatar</span></div>
+    <nav class="navlinks" id="navlinks">
+      <a href="#abstract">Abstract</a>
+      <a href="#motivation">Motivation</a>
+      <a href="#method">Method</a>
+      <a href="#quantitative">Quantitative</a>
+      <a href="#qualitative">Qualitative</a>
+      <a href="#more">More Results</a>
+    </nav>
+  </div>
+</div>
+
+<!-- =============================================================== hero -->
+<header class="hero">
+  <div class="wrap">
+    <h1>NextAvatar: Next-State Planning for<br>Streaming Avatar Video Generation</h1>
+    <div class="authors">Anonymous Authors</div>
+    <div class="affil">Under review &middot; ICLR 2027 submission</div>
+
+    <div class="tldr">
+      Streaming avatar generators sustain visual continuity but confuse
+      <b>history states</b>: under one unchanged instruction they either
+      <b>stagnate</b> before the action starts or <b>repeat</b> it after it has been
+      completed. <b>NextAvatar</b> resolves this by planning the next visual state
+      from the generated history with a frozen MLLM, anchoring that state to the
+      initial reference, and injecting it through state-conditioned attention &mdash;
+      with a <b>1.3B</b> generator backbone.
+    </div>
+
+    <div class="pillrow">
+      <span class="pill ours">1.3B generator backbone</span>
+      <span class="pill ours">MIRA-Bench: 50 refs &times; 200 &times; 10 instructions</span>
+      <span class="pill ours">Best Instruct Follow &amp; VisionReward</span>
+      <span class="pill ours">30.5% combined error (vs. 52.5% best baseline)</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+<!-- =========================================================== abstract -->
+<section id="abstract">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Abstract</div>
+      <h2>Overview</h2>
+    </div>
+
+    <p class="body">
+      Streaming avatar generation synthesizes video chunk by chunk, conditioned on visual
+      history and text instructions. Each chunk typically covers about one second, often too
+      short to complete an action, so a single instruction spans multiple chunks during
+      training and inference. Coherent action progression therefore requires the generator to
+      account for what the avatar has already done.
+    </p>
+
+    <p class="body">
+      However, we observe that streaming generators often stagnate before executing an action
+      or repeat it after completion. To investigate these failures, we analyze the attention
+      mechanisms that incorporate visual history and text instructions into generation. We
+      identify <span class="hl">history-state confusion</span>: attention to both conditions
+      remains largely unchanged across distinct execution states under the same instruction,
+      failing to adequately distinguish action progress and leading to stagnation and
+      repetition.
+    </p>
+
+    <p class="body">
+      To address this problem, we propose <b>NextAvatar</b>. We use a frozen pretrained
+      multimodal large language model to interpret the history state and active instruction,
+      then provide an explicit next-state visual plan through state-conditioned attention. To
+      reduce appearance deviations in the planned state, we introduce <b>Reference-Grounded
+      State Anchoring</b>, which refines its visual features through asymmetric attention to
+      fixed initial-reference features.
+    </p>
+
+    <p class="body">
+      We further introduce the <b>Multi-Instruction Responsive Avatar Benchmark (MIRA-Bench)</b>,
+      comprising 2,000 expression&ndash;action intervals to evaluate Human Fidelity, Instruction
+      Responsiveness, Video Quality, and Action Progression. With a <b>1.3B</b> generator
+      backbone, NextAvatar achieves the strongest Instruction Responsiveness among the evaluated
+      methods and reduces combined stagnation and repetition from the best external baseline's
+      52.5% to 30.5%, while maintaining competitive Human Fidelity and Video Quality.
+    </p>
+
+    <div class="statgrid">
+      <div class="stat"><div class="v">1.3B</div><div class="k">generator backbone parameters (vs. 13.6B&ndash;22B baselines)</div></div>
+      <div class="stat"><div class="v">0.6495</div><div class="k">Instruct Follow &mdash; best among all evaluated methods</div></div>
+      <div class="stat"><div class="v">30.5%</div><div class="k">combined repetition + stagnation (best external: 52.5%)</div></div>
+      <div class="stat"><div class="v">&minus;22.0pp</div><div class="k">absolute reduction in combined error</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================= motivation -->
+<section id="motivation">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Motivation</div>
+      <h2>History-state confusion</h2>
+      <p>
+        Visual continuity is not action continuity. The same terminal pose can mean
+        &ldquo;the action has not started&rdquo; or &ldquo;the action is already
+        completed&rdquo;, and these two history states demand opposite continuations.
+      </p>
+    </div>
+
+    <figure class="fig">
+      <img src="assets/figures/motivation.png" alt="History-state confusion in streaming avatar generation">
+      <figcaption>
+        <b>History-state confusion in streaming avatar generation.</b>
+        (a) Possible continuations before and after action execution: correct execution or
+        completion, versus stagnation or repetition. (b) Outcome distribution for three
+        streaming avatar models in a pilot study on randomly generated examples.
+        (c) Visual-history self-attention is allocated similarly across temporal positions
+        despite different history states. (d) Text-instruction cross-attention is likewise
+        similar across the two states; the ten shared instruction tokens are ranked under the
+        not-started condition.
+      </figcaption>
+    </figure>
+
+    <p class="body">
+      As shown in (a), the instruction &ldquo;give a thumbs-up once, then lower your hand
+      and remain still&rdquo; admits four possible continuations. Before the gesture begins,
+      the avatar should perform it, whereas remaining still constitutes stagnation. After the
+      gesture is completed, the avatar should lower its hand and remain still, whereas
+      performing the gesture again constitutes repetition. We call the action progress
+      reflected in the preceding video the <i>history state</i>, and the intended behavior in
+      the upcoming chunk the <i>next state</i>.
+    </p>
+
+    <p class="body">
+      In our pilot study on randomly generated examples (b), these failures occur in
+      <b>NextAvatar-Base</b>, a streaming avatar generator trained by us, as well as in
+      SoulX-FlashTalk and LongCat-Avatar 1.5, showing substantial stagnation and repetition.
+    </p>
+
+    <p class="body">
+      We further compare paired runs with the same instruction and different history states
+      to examine how these models attend to visual history and text. Across the models,
+      self-attention is allocated similarly across visual-history positions in the
+      not-started and completed states (c). Cross-attention over instruction tokens likewise
+      changes little between the two states (d). These attention patterns suggest that
+      attention to the visual history and instruction does not adequately reflect changes in
+      action progress. We term this <span class="hl">history-state confusion</span>: the
+      current attention mechanisms respond similarly to histories with different action
+      progress. This calls for explicit state conditioning based on visual history and the
+      instruction.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================= method -->
+<section id="method">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Method</div>
+      <h2>NextAvatar</h2>
+      <p>
+        Next-State Planning (NSP) &rarr; Reference-Grounded State Anchoring &rarr;
+        State-Conditioned Generation.
+      </p>
+    </div>
+
+    <figure class="fig">
+      <img src="assets/figures/framework.png" alt="Overview of the NextAvatar framework">
+      <figcaption>
+        <b>Overview of NextAvatar.</b>
+        (a) NSP predicts the next state from history and instruction; reference-grounded
+        anchoring and a state adapter produce generator conditions. Generated chunks
+        update the history. (b) State tokens attend to both reference and state tokens,
+        while reference tokens attend only to reference tokens. A gated residual produces
+        the anchored state. (c) Separate text and state attention responses are combined
+        to condition generation.
+      </figcaption>
+    </figure>
+
+    <p class="body">
+      An instruction may span multiple chunks, so the appropriate <i>next state</i> depends on
+      the action progress recorded in the visual history, namely the <i>history state</i>. When
+      attention responds similarly to histories at different stages of execution, this
+      <i>history-state confusion</i> can lead to an incorrect next state, causing stagnation
+      before execution or repetition after completion. NextAvatar addresses history-state
+      confusion by explicitly planning the next state from the visual history and active
+      instruction.
+      <b>Next-State Planning (NSP)</b> uses an MLLM to interpret the history state and predict
+      the intended continuation. <b>Reference-Grounded State Anchoring</b> then refines this
+      prediction using the initial reference to constrain appearance deviations inherited from
+      generated history. A state adapter converts the anchored prediction into generator
+      conditions, which are introduced through state-conditioned attention. Each generated
+      chunk updates the history for subsequent planning.
+    </p>
+  </div>
+</section>
+
+<!-- ======================================================= quantitative -->
+<section id="quantitative">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Quantitative Comparison</div>
+      <h2>MIRA-Bench results</h2>
+      <p>
+        With a <b>1.3B</b> generator backbone, NextAvatar reaches the highest Instruct Follow
+        and VisionReward among all evaluated methods, and the lowest combined repetition and
+        stagnation rate in human evaluation.
+      </p>
+    </div>
+
+    <figure class="fig">
+      <img src="assets/figures/benchmark.png" alt="Example MIRA-Bench assignment">
+      <figcaption>
+        <b>Example MIRA-Bench assignment.</b> A fixed reference image paired with ten
+        sequential instructions, each specifying expression and action with independent
+        clear/subtle tags. MIRA-Bench pairs 50 reference images with 200 ten-instruction
+        sequences, yielding 2,000 expression&ndash;action intervals.
+      </figcaption>
+    </figure>
+
+    <div class="table-block">
+      <div class="table-cap">
+        <b>Table 1. MIRA-Bench comparison.</b> <i>Params</i> denotes backbone parameter
+        counts. Human Identity uses the input reference. VisionReward is normalized.
+        Best results are <b>bold</b>, second-best are <u>underlined</u>.
+      </div>
+      <div class="table-scroll">
+        <table class="paper">
+          <thead>
+            <tr>
+              <th>Method</th><th>Params</th>
+              <th>Human<br>Anatomy &uarr;</th>
+              <th>Human<br>Identity &uarr;</th>
+              <th>Human<br>Clothes &uarr;</th>
+              <th>Instruct<br>Follow &uarr;</th>
+              <th>Vision<br>Reward &uarr;</th>
+              <th>Aesthetic<br>Quality &uarr;</th>
+              <th>Imaging<br>Quality &uarr;</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>LongCat-Avatar 1.5</td><td>13.6B</td>
+              <td>0.9680</td><td>0.9441</td><td class="best">1.0000</td>
+              <td>0.5710</td><td class="second">0.9370</td><td>0.5429</td><td class="best">0.7479</td>
+            </tr>
+            <tr>
+              <td>SoulX-FlashTalk</td><td>14B</td>
+              <td>0.9602</td><td class="second">0.9707</td><td class="best">1.0000</td>
+              <td>0.4445</td><td>0.9251</td><td class="best">0.5797</td><td>0.7296</td>
+            </tr>
+            <tr>
+              <td>SoulX-LiveAct</td><td>14B</td>
+              <td class="best">0.9691</td><td>0.9650</td><td class="best">1.0000</td>
+              <td class="second">0.6395</td><td>0.9219</td><td>0.5472</td><td>0.7425</td>
+            </tr>
+            <tr>
+              <td>Live Avatar</td><td>14B</td>
+              <td>0.9129</td><td>0.9542</td><td class="best">1.0000</td>
+              <td>0.5690</td><td>0.9214</td><td>0.5533</td><td>0.7356</td>
+            </tr>
+            <tr>
+              <td>TaoMate</td><td>22B</td>
+              <td>0.9519</td><td>0.8102</td><td class="second">0.9648</td>
+              <td>0.6245</td><td>0.9281</td><td>0.5518</td><td>0.7320</td>
+            </tr>
+            <tr>
+              <td>AptAvatar</td><td>14B</td>
+              <td class="second">0.9686</td><td class="best">0.9725</td><td class="best">1.0000</td>
+              <td>0.5405</td><td>0.9238</td><td>0.5619</td><td>0.7400</td>
+            </tr>
+            <tr class="ours divider">
+              <td>NextAvatar</td><td>1.3B</td>
+              <td>0.9338</td><td>0.9323</td><td class="best">1.0000</td>
+              <td class="best">0.6495</td><td class="best">0.9397</td>
+              <td class="second">0.5700</td><td class="second">0.7427</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="body">
+      NextAvatar leads in Instruct Follow (<b>0.6495</b>) and VisionReward (<b>0.9397</b>) and
+      takes the second-best Aesthetic and Imaging Quality, while Human Anatomy and Human
+      Identity remain below the leading external methods.
+    </p>
+
+    <div class="table-block">
+      <div class="table-cap">
+        <b>Table 2. Human evaluation on MIRA-Bench.</b> Total Error is the sum of stagnation
+        and repetition rates. Best results are <b>bold</b>; second-best are <u>underlined</u>.
+      </div>
+      <div class="table-scroll">
+        <table class="paper" style="min-width:520px">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Total Error &darr;</th>
+              <th>Stagnation &darr;</th>
+              <th>Repetition &darr;</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>LongCat-Avatar 1.5</td><td>54.5%</td><td>28.0%</td><td>26.5%</td></tr>
+            <tr><td>SoulX-FlashTalk</td><td>78.0%</td><td>71.0%</td><td class="best">7.0%</td></tr>
+            <tr><td>SoulX-LiveAct</td><td>76.0%</td><td>27.5%</td><td>48.5%</td></tr>
+            <tr><td>Live Avatar</td><td>59.0%</td><td class="best">6.0%</td><td>53.0%</td></tr>
+            <tr><td>TaoMate</td><td class="second">52.5%</td><td class="second">24.0%</td><td>28.5%</td></tr>
+            <tr><td>AptAvatar</td><td>77.0%</td><td>30.0%</td><td>47.0%</td></tr>
+            <tr class="ours divider"><td>NextAvatar</td><td class="best">30.5%</td><td class="best">6.0%</td><td class="second">24.5%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="body">
+      NextAvatar attains the lowest combined error of <b>30.5%</b> versus 52.5% for the best
+      external method (TaoMate) &mdash; a 22.0-point absolute reduction. It ties for the lowest
+      stagnation rate (6.0%) and achieves the second-lowest repetition rate (24.5%).
+      Evaluating repetition and stagnation jointly is essential: SoulX-FlashTalk has little
+      repetition but frequently stagnates, whereas Live Avatar rarely stagnates but often
+      repeats actions.
+    </p>
+  </div>
+</section>
+
+<!-- ======================================================== qualitative -->
+<section id="qualitative">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">Qualitative Comparison</div>
+      <h2>Case-by-case comparison</h2>
+    </div>
+    <div id="qual-carousel"><div class="loading">Loading comparison cases&hellip;</div></div>
+  </div>
+</section>
+
+<!-- =============================================================== more -->
+<section id="more">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow">More Results</div>
+      <h2>Long instruction sequences</h2>
+    </div>
+    <div id="more-carousel"><div class="loading">Loading results&hellip;</div></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>NextAvatar &mdash; Next-State Planning for Streaming Avatar Video Generation</div>
+    <div class="spacer">Static demo page &middot; anonymous review version</div>
+  </div>
+</footer>
+
+<script src="js/main.js"></script>
+</body>
+</html>
