@@ -1,4 +1,4 @@
-{
+window.NEXTAVATAR_MORE = {
  "videos": [
   {
    "id": 1,
@@ -156,4 +156,4 @@
    ]
   }
  ]
-}
+};

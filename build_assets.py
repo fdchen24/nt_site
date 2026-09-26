@@ -13,6 +13,8 @@ sub-path (or pushed as its own repository).
     videos/more_results/qualified.csv  English prompts for the long sequences
     videos/more_results/<name>.mp4
     assets/figures/                    paper figures used by the text sections
+    data/qualitative.js                generated: window.NEXTAVATAR_QUALITATIVE
+    data/more.js                       generated: window.NEXTAVATAR_MORE
 
 Sources
 -------
@@ -74,6 +76,22 @@ def copy(src: Path, dst: Path, force: bool) -> bool:
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dst)
     return True
+
+
+def write_data(name: str, global_name: str, payload: dict) -> None:
+    """Write one payload as a JS file that assigns a global.
+
+    The page must also work when served by Anonymous GitHub's mirror, which
+    sandboxes the document without ``allow-same-origin``.  That gives the page
+    an opaque origin, so ``fetch()`` on the page's own data files is treated as
+    cross-origin and blocked (the mirror sends no CORS headers), while a classic
+    ``<script>`` tag is not subject to CORS at all.  The payload therefore ships
+    as JS rather than JSON.
+    """
+    body = json.dumps(payload, ensure_ascii=False, indent=1)
+    (SITE / "data" / f"{name}.js").write_text(
+        f"window.{global_name} = {body};\n", encoding="utf-8"
+    )
 
 
 def qual_ids() -> list[int]:
@@ -145,9 +163,7 @@ def build_qualitative(force: bool) -> None:
         })
         print(f"  [qual] case {vid:02d}: {len(clips)} clips")
 
-    (SITE / "data" / "qualitative.json").write_text(
-        json.dumps({"groups": groups}, ensure_ascii=False, indent=1), encoding="utf-8"
-    )
+    write_data("qualitative", "NEXTAVATAR_QUALITATIVE", {"groups": groups})
 
 
 def build_more() -> None:
@@ -190,9 +206,7 @@ def build_more() -> None:
         })
         print(f"  [more] {name}: {len(prompts)} prompts")
 
-    (SITE / "data" / "more.json").write_text(
-        json.dumps({"videos": videos}, ensure_ascii=False, indent=1), encoding="utf-8"
-    )
+    write_data("more", "NEXTAVATAR_MORE", {"videos": videos})
 
 
 def main() -> None:

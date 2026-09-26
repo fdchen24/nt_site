@@ -200,7 +200,7 @@
 
   function renderQualitative(data) {
     const host = document.getElementById("qual-carousel");
-    if (!host) return;
+    if (!host || !data) return;
 
     const groups = data.groups;
     /* Videos of the slide currently on screen, so the header's play button can
@@ -266,7 +266,7 @@
 
   function renderMore(data) {
     const host = document.getElementById("more-carousel");
-    if (!host) return;
+    if (!host || !data) return;
 
     const videos = data.videos;
     /* The single clip of the slide on screen, so the header's play button can
@@ -367,27 +367,12 @@
 
   /* -------------------------------------------------------------- boot */
 
-  function loadJSON(url) {
-    return fetch(url).then(function (r) {
-      if (!r.ok) throw new Error(url + ": HTTP " + r.status);
-      return r.json();
-    });
-  }
-
-  function fail(hostId, err) {
-    const host = document.getElementById(hostId);
-    if (host) {
-      host.innerHTML = '<div class="loading">Failed to load data: ' + escapeHtml(err.message) + "</div>";
-    }
-  }
-
   document.addEventListener("DOMContentLoaded", function () {
     initNav();
-    loadJSON("data/qualitative.json").then(renderQualitative, function (e) {
-      fail("qual-carousel", e);
-    });
-    loadJSON("data/more.json").then(renderMore, function (e) {
-      fail("more-carousel", e);
-    });
+    /* The payloads arrive as globals from data/*.js, not via fetch(): the
+       Anonymous GitHub mirror sandboxes the page without allow-same-origin,
+       which turns any fetch() into a blocked cross-origin request. */
+    renderQualitative(window.NEXTAVATAR_QUALITATIVE);
+    renderMore(window.NEXTAVATAR_MORE);
   });
 })();

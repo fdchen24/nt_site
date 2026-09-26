@@ -1,4 +1,4 @@
-{
+window.NEXTAVATAR_QUALITATIVE = {
  "groups": [
   {
    "id": 12,
@@ -256,4 +256,4 @@
    ]
   }
  ]
-}
+};
