@@ -507,16 +507,16 @@ html.js .car-btn.play { display: inline-flex; }
 }
 .clip video { cursor: pointer; }
 
+/* Labels carry a "<method>: <verdict>" pair for the annotated cases, so they
+   wrap instead of clipping the verdict behind an ellipsis. */
 .clip-label {
   font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--fg-soft);
   padding: 8px 10px;
   background: var(--bg-soft);
   border-top: 1px solid var(--line);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* --------------------------------------------------------- more results */
